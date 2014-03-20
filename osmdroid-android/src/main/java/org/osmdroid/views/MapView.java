@@ -1,14 +1,17 @@
 // Created by plusminus on 17:45:56 - 25.09.2008
 package org.osmdroid.views;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
+import android.content.Context;
+import android.graphics.*;
+import android.os.Build;
+import android.os.Handler;
+import android.util.AttributeSet;
+import android.view.*;
+import android.view.GestureDetector.OnGestureListener;
+import android.widget.Scroller;
+import android.widget.ZoomButtonsController;
+import android.widget.ZoomButtonsController.OnZoomListener;
 import microsoft.mappoint.TileSystem;
-
 import org.metalev.multitouch.controller.MultiTouchController;
 import org.metalev.multitouch.controller.MultiTouchController.MultiTouchObjectCanvas;
 import org.metalev.multitouch.controller.MultiTouchController.PointInfo;
@@ -44,24 +47,11 @@ import org.osmdroid.views.util.constants.MapViewConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Matrix;
-import android.graphics.Point;
-import android.graphics.PointF;
-import android.graphics.Rect;
-import android.os.Build;
-import android.os.Handler;
-import android.util.AttributeSet;
-import android.view.GestureDetector;
-import android.view.GestureDetector.OnGestureListener;
-import android.view.KeyEvent;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Scroller;
-import android.widget.ZoomButtonsController;
-import android.widget.ZoomButtonsController.OnZoomListener;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MapView extends ViewGroup implements IMapView, MapViewConstants,
 		MultiTouchObjectCanvas<Object> {
@@ -1363,6 +1353,24 @@ public class MapView extends ViewGroup implements IMapView, MapViewConstants,
 			return out;
 		}
 
+        /**
+         * Converts latitude longitude to <I>screen coordinates</I>
+         * @param reuse just pass null if you do not have a Point to be 'recycled'.
+         * @return the Point containing the <I>screen coordinates</I>  of latitude, longitude
+         */
+        public Point toMapPixels(final double latitude, final double longitude, final Point reuse) {
+            final Point out = reuse != null ? reuse : new Point();
+            TileSystem.LatLongToPixelXY(
+                    latitude,
+                    longitude,
+                    getZoomLevel(), out);
+            out.offset(offsetX, offsetY);
+
+            wrapPointsToDateline(out, getScrollX(), getZoomLevel());
+
+            return out;
+        }
+
 		/**
 		 * Performs only the first computationally heavy part of the projection. Call
 		 * toMapPixelsTranslated to get the final position.
@@ -1431,6 +1439,17 @@ public class MapView extends ViewGroup implements IMapView, MapViewConstants,
                     point.x = -((oneEightyDegrees - Math.abs(point.x)) + oneEightyDegrees);
                 }
             }
+        }
+
+        public boolean wrapsTooFar(final int destination, final int reference, final int zoomLevel) {
+
+            //120 degrees longitude in pixels
+            final int oneTwentyDegrees = TileSystem.MapSize(zoomLevel) / 3;
+
+            return (destination < -oneTwentyDegrees && reference > 0)  ||
+                    (destination > oneTwentyDegrees && reference < 0)  ||
+                    (reference < -oneTwentyDegrees && destination > 0) ||
+                    (reference > oneTwentyDegrees && destination < 0);
         }
 
 		/**
