@@ -1,16 +1,17 @@
 package org.osmdroid.google.wrapper.v2;
 
-import android.app.ActivityManager;
-import android.content.Context;
-import android.content.pm.ConfigurationInfo;
-import android.content.pm.PackageManager;
+import java.lang.reflect.Method;
+
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapsInitializer;
 import org.osmdroid.api.IMap;
 
-import java.lang.reflect.Method;
+import android.app.ActivityManager;
+import android.content.Context;
+import android.content.pm.ConfigurationInfo;
+import android.content.pm.PackageManager;
 
 public class MapFactory {
 
@@ -19,7 +20,7 @@ public class MapFactory {
 
 	public static IMap getMap(final com.google.android.gms.maps.MapView aMapView) {
 		final GoogleMap map = aMapView.getMap();
-        MapsInitializer.initialize(aMapView.getContext());
+		MapsInitializer.initialize(aMapView.getContext());
 		return map != null ? new MapWrapper(map) : null;
 	}
 
