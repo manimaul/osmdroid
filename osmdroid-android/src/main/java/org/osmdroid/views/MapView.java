@@ -1,14 +1,17 @@
 // Created by plusminus on 17:45:56 - 25.09.2008
 package org.osmdroid.views;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
+import android.content.Context;
+import android.graphics.*;
+import android.os.Build;
+import android.os.Handler;
+import android.util.AttributeSet;
+import android.view.*;
+import android.view.GestureDetector.OnGestureListener;
+import android.widget.Scroller;
+import android.widget.ZoomButtonsController;
+import android.widget.ZoomButtonsController.OnZoomListener;
 import microsoft.mappoint.TileSystem;
-
 import org.metalev.multitouch.controller.MultiTouchController;
 import org.metalev.multitouch.controller.MultiTouchController.MultiTouchObjectCanvas;
 import org.metalev.multitouch.controller.MultiTouchController.PointInfo;
@@ -44,24 +47,11 @@ import org.osmdroid.views.util.constants.MapViewConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Matrix;
-import android.graphics.Point;
-import android.graphics.PointF;
-import android.graphics.Rect;
-import android.os.Build;
-import android.os.Handler;
-import android.util.AttributeSet;
-import android.view.GestureDetector;
-import android.view.GestureDetector.OnGestureListener;
-import android.view.KeyEvent;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Scroller;
-import android.widget.ZoomButtonsController;
-import android.widget.ZoomButtonsController.OnZoomListener;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MapView extends ViewGroup implements IMapView, MapViewConstants,
 		MultiTouchObjectCanvas<Object> {
@@ -1357,24 +1347,29 @@ public class MapView extends ViewGroup implements IMapView, MapViewConstants,
 							in.getLongitude(),
 							getZoomLevel(), out);
 			out.offset(offsetX, offsetY);
-			if (Math.abs(out.x - getScrollX()) >
-					Math.abs(out.x - TileSystem.MapSize(getZoomLevel()) - getScrollX())) {
-				out.x -= TileSystem.MapSize(getZoomLevel());
-			}
-			if (Math.abs(out.x - getScrollX()) >
-					Math.abs(out.x + TileSystem.MapSize(getZoomLevel()) - getScrollX())) {
-				out.x += TileSystem.MapSize(getZoomLevel());
-			}
-			if (Math.abs(out.y - getScrollY()) >
-					Math.abs(out.y - TileSystem.MapSize(getZoomLevel()) - getScrollY())) {
-				out.y -= TileSystem.MapSize(getZoomLevel());
-			}
-			if (Math.abs(out.y - getScrollY()) >
-					Math.abs(out.y + TileSystem.MapSize(getZoomLevel()) - getScrollY())) {
-				out.y += TileSystem.MapSize(getZoomLevel());
-			}
+
+            wrapPointsToDateline(out, getScrollX(), getZoomLevel());
+
 			return out;
 		}
+
+        /**
+         * Converts latitude longitude to <I>screen coordinates</I>
+         * @param reuse just pass null if you do not have a Point to be 'recycled'.
+         * @return the Point containing the <I>screen coordinates</I>  of latitude, longitude
+         */
+        public Point toMapPixels(final double latitude, final double longitude, final Point reuse) {
+            final Point out = reuse != null ? reuse : new Point();
+            TileSystem.LatLongToPixelXY(
+                    latitude,
+                    longitude,
+                    getZoomLevel(), out);
+            out.offset(offsetX, offsetY);
+
+            wrapPointsToDateline(out, getScrollX(), getZoomLevel());
+
+            return out;
+        }
 
 		/**
 		 * Performs only the first computationally heavy part of the projection. Call
@@ -1411,8 +1406,51 @@ public class MapView extends ViewGroup implements IMapView, MapViewConstants,
 
 			final int zoomDifference = MAXIMUM_ZOOMLEVEL - getZoomLevel();
 			out.set((in.x >> zoomDifference) + offsetX, (in.y >> zoomDifference) + offsetY);
+
+            wrapPointsToDateline(out, getScrollX(), getZoomLevel());
+
 			return out;
 		}
+
+        /**
+         * Manipulates point x coordinates to wrap around dateline when point is West of 90W
+         * and East of 90E according to center of MapView being East or West of Prime meridian
+         *
+         */
+        public void wrapPointsToDateline(final Point point, final int reference, final int zoomLevel) {
+            //both point.x and reference are in easter hemisphere... do nothing
+            if (reference >= 0 && point.x >= 0)
+                return;
+
+            //both point.x and reference are in western hemisphere... do nothing
+            if (reference <= 0 && point.x <= 0)
+                return;
+
+            //180 degrees longitude in pixels
+            final int oneEightyDegrees = TileSystem.MapSize(zoomLevel) / 2;
+
+            //reference more than 180 degrees longitude from point
+            if (Math.abs(reference) + Math.abs(point.x) >= oneEightyDegrees) {
+                if (reference > point.x) {
+                    //reference west of dateline ... wrap point.x east of dateline
+                    point.x = (oneEightyDegrees - Math.abs(point.x)) + oneEightyDegrees;
+                } else {
+                    //reference east of dateline ... wrap point.x west of dateline
+                    point.x = -((oneEightyDegrees - Math.abs(point.x)) + oneEightyDegrees);
+                }
+            }
+        }
+
+        public boolean wrapsTooFar(final int destination, final int reference, final int zoomLevel) {
+
+            //120 degrees longitude in pixels
+            final int oneTwentyDegrees = TileSystem.MapSize(zoomLevel) / 3;
+
+            return (destination < -oneTwentyDegrees && reference > 0)  ||
+                    (destination > oneTwentyDegrees && reference < 0)  ||
+                    (reference < -oneTwentyDegrees && destination > 0) ||
+                    (reference > oneTwentyDegrees && destination < 0);
+        }
 
 		/**
 		 * Translates a rectangle from <I>screen coordinates</I> to <I>intermediate coordinates</I>.

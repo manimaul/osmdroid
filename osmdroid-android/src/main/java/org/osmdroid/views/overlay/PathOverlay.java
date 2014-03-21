@@ -1,8 +1,7 @@
 package org.osmdroid.views.overlay;
 
-import java.util.ArrayList;
-import java.util.List;
-
+import android.content.Context;
+import android.graphics.*;
 import org.osmdroid.DefaultResourceProxyImpl;
 import org.osmdroid.ResourceProxy;
 import org.osmdroid.api.IGeoPoint;
@@ -10,12 +9,8 @@ import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.MapView.Projection;
 
-import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.Point;
-import android.graphics.Rect;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -242,6 +237,14 @@ public class PathOverlay extends Overlay {
 
 			screenPoint1 = pj.toMapPixelsTranslated(projectedPoint1, this.mTempPoint2);
 
+            // skip this line, move to next point
+            if (pj.wrapsTooFar(screenPoint1.x, screenPoint0.x, mapView.getZoomLevel())) {
+                projectedPoint0 = projectedPoint1;
+                screenPoint0 = null;
+                mPath.moveTo(screenPoint1.x, screenPoint1.y);
+                continue;
+            }
+
 			// skip this point, too close to previous point
 			if (Math.abs(screenPoint1.x - screenPoint0.x) + Math.abs(screenPoint1.y - screenPoint0.y) <= 1) {
 				continue;
@@ -258,4 +261,6 @@ public class PathOverlay extends Overlay {
 
 		canvas.drawPath(mPath, this.mPaint);
 	}
+
+
 }
