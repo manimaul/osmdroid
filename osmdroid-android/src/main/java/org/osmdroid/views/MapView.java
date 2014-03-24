@@ -1090,6 +1090,10 @@ public class MapView extends ViewGroup implements IMapView, MapViewConstants,
 	// Implementation of MultiTouchObjectCanvas
 	// ===========================================================
 
+    public boolean isMultiTouchPinching() {
+        return mMultiTouchController.isPinching();
+    }
+
 	@Override
 	public Object getDraggableObjectAtPoint(final PointInfo pt) {
 		if (this.isAnimating()) {
